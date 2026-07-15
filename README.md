@@ -1,4 +1,5 @@
-# pestpp_ies_post — Autonomous post-processing for PEST++ IES
+# PUMA — **P**ost-processing for **U**ncertainty analysis and **M**ARTHE c**A**libration
+## Autonomous post-processing for PEST++ IES
 
 A self-contained Python toolbox for diagnosing the **efficacy of calibration**
 and the **quality of uncertainty analysis** from a
@@ -42,13 +43,13 @@ Design principles:
 Install the package (and its console script) directly from GitHub:
 
 ```bash
-pip install git+https://github.com/Ranveer82/Pestpp_Post.git
+pip install git+https://github.com/Ranveer82/PUMA.git
 ```
 
 or from a local clone:
 
 ```bash
-git clone https://github.com/Ranveer82/Pestpp_Post.git
+git clone https://github.com/Ranveer82/PUMA.git
 cd Pestpp_Post
 pip install .            # or  pip install -e .   for a live/editable install
 ```
