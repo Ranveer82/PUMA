@@ -16,17 +16,6 @@ driven through PEST++.
 
 ## Why this toolbox
 
-The original reference workflow was hard-wired to one MODFLOW/Marthe model
-(it parsed `.histo` files, hard-coded absolute paths, and guessed parameter
-transforms from group-name substrings). This toolbox generalises those ideas
-into a reusable package and **adds several diagnostics that the reference
-lacked** — most importantly the requested **observation-groupwise 1:1 scatter
-with an ensemble uncertainty range**, plus a posterior **reliability/coverage
-diagram**, a **parameter uncertainty-reduction** chart, **predictive-forecast
-uncertainty** plots, and **prior-data-conflict** screening.
-
-Design principles:
-
 - **Autonomous** — auto-detects the case name, `noptmax`, which iterations
   have ensembles, and whether files are text (`.csv`) or binary (`.jcb`).
 - **Robust** — every figure degrades gracefully; a missing file or a failed
