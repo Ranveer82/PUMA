@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Toolbox output
+PLOTS_PESTPP_IES/
+synthetic_case/
+synthetic_plots/
+*.png
