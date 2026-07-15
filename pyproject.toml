@@ -42,10 +42,10 @@ Homepage = "https://github.com/Ranveer82/PUMA"
 Repository = "https://github.com/Ranveer82/PUMA"
 
 [project.scripts]
-pestpp-ies-post = "pestpp_ies_post.cli:main"
+puma = "puma.cli:main"
 
 [tool.setuptools]
-packages = ["pestpp_ies_post"]
+packages = ["puma"]
 
 [tool.setuptools.package-data]
-pestpp_ies_post = ["py.typed"]
+puma = ["py.typed"]
