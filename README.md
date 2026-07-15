@@ -155,7 +155,7 @@ model grid when `--marthe-rma` is given). Three maps, coloured per site:
 - **CI coverage** of measurements (reliability).
 
 ```bash
-python run_ies_post.py case.pst --histo mrn_v11.histo --shapefile domain.shp
+python run_puma.py case.pst --histo mrn_v11.histo --shapefile domain.shp
 ```
 
 **2. Pilot-point / parameter maps** — need a pilot-point file
@@ -164,7 +164,7 @@ field), posterior **std**, and **uncertainty reduction**
 `1 − σ_post/σ_prior` — showing which locations the data actually constrained.
 
 ```bash
-python run_ies_post.py case.pst --pp-file hkpp.dat
+python run_puma.py case.pst --pp-file hkpp.dat
 ```
 
 **3. Property field on the model grid (`pymarthe`)** — with `pymarthe`
@@ -173,7 +173,7 @@ rendered on the true Marthe grid via `MartheField.plot`, with pilot points
 overlaid (size = posterior std, colour = uncertainty reduction):
 
 ```bash
-python run_ies_post.py case.pst --marthe-rma mrn_v1.rma --field-prop permh \
+python run_puma.py case.pst --marthe-rma mrn_v1.rma --field-prop permh \
     --field-layer 2 --pp-file hkpp.dat
 ```
 
@@ -183,7 +183,7 @@ reconstructs a *per-cell* posterior ensemble of the property field and maps its
 **mean**, **std** and **CV** on the true grid:
 
 ```bash
-python run_ies_post.py case.pst --marthe-config configuration.config \
+python run_puma.py case.pst --marthe-config configuration.config \
     --field-prop permh --field-layer 2 --field-max-reals 50
 ```
 
@@ -234,7 +234,7 @@ meta = marthe.build_obs_meta(res, "mrn_v11.pastp", mart_file="mrn_v11.mart")
 timeseries.plot_obs_timeseries(res, "PLOTS/ts", obs_meta=meta)
 ```
 
-or simply pass `--marthe-pastp` / `--marthe-mart` to `run_ies_post.py`. Parsing
+or simply pass `--marthe-pastp` / `--marthe-mart` to `run_puma.py`. Parsing
 is done directly (no `pymarthe` dependency); if `pymarthe` is available it can
 be substituted without changing the rest of the toolbox.
 
@@ -284,7 +284,7 @@ A synthetic PEST++ IES case generator is included for testing/demonstration:
 
 ```bash
 python examples/make_synthetic_ies.py -o synthetic_case
-python run_ies_post.py synthetic_case/synth_ies.pst -o synthetic_plots
+python run_puma.py synthetic_case/synth_ies.pst -o synthetic_plots
 ```
 
 This writes a valid `.pst`, prior/posterior parameter and observation
@@ -307,7 +307,7 @@ puma/
     cli.py             command-line interface (puma)
     __main__.py        enables `python -m puma`
 pyproject.toml         packaging / console-script entry point
-run_ies_post.py        legacy CLI wrapper (delegates to cli.py)
+run_puma.py        legacy CLI wrapper (delegates to cli.py)
 examples/
     make_synthetic_ies.py   synthetic test-case generator
 ```
