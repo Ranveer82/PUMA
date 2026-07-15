@@ -3,9 +3,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pestpp_ies_post"
+name = "PUMA"
 version = "0.1.0"
-description = "Autonomous post-processing and diagnostic plots for PEST++ IES (iterative ensemble smoother) runs, with optional Marthe/pymarthe spatial support."
+description = "(Post-processing for Uncertainty analysis and MARTHE cAlibration)- Autonomous post-processing and diagnostic plots for PEST++ IES (iterative ensemble smoother) runs, with optional Marthe/pymarthe spatial support."
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
@@ -38,8 +38,8 @@ spatial = ["geopandas>=0.10"]
 dev = ["pytest>=7", "flake8"]
 
 [project.urls]
-Homepage = "https://github.com/Ranveer82/Pestpp_Post"
-Repository = "https://github.com/Ranveer82/Pestpp_Post"
+Homepage = "https://github.com/Ranveer82/PUMA"
+Repository = "https://github.com/Ranveer82/PUMA"
 
 [project.scripts]
 pestpp-ies-post = "pestpp_ies_post.cli:main"
