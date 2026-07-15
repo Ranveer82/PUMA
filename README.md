@@ -66,8 +66,8 @@ as `python -m puma`.
 puma path/to/case.pst
 
 # equivalently, without installing:
-python -m pestpp_ies_post path/to/case.pst
-python run_ies_post.py path/to/case.pst          # legacy wrapper
+python -m puma path/to/case.pst
+python run_puma.py path/to/case.pst          # legacy wrapper
 
 # let it find the .pst inside a directory, custom output folder
 puma /runs/model_ies -o my_plots
@@ -90,7 +90,7 @@ selection, time series, and spatial options).
 ### Python API
 
 ```python
-from pestpp_ies_post import run_full_report
+from puma import run_full_report
 
 # choose which iteration is the posterior, and the layer for field maps
 run_full_report("case.pst", output_dir="PLOTS",
@@ -102,7 +102,7 @@ Or drive individual figures — every plot takes flexible inputs (iteration,
 layer, credible interval, grouping):
 
 ```python
-from pestpp_ies_post import IesResults, plots, spatial
+from puma import IesResults, plots, spatial
 res = IesResults("case.pst")
 print(res.summary())                       # inventory of discovered files
 
@@ -144,7 +144,7 @@ spatial field/obs functions also accept `layer`. Omit them to use the defaults
 
 Beyond the aspatial diagnostics, the toolbox can map *where* the calibration is
 good and *where* the posterior is still uncertain (module
-`pestpp_ies_post.spatial`). Three tiers, by what you can supply:
+`puma.spatial`). Three tiers, by what you can supply:
 
 **1. Observation-location maps** — need only site coordinates from a Marthe
 `.histo` file (parsed natively — projected `/XCOO`, grid-cell `/MAIL`, and
@@ -211,7 +211,7 @@ Install `pymarthe` from source:
 PEST++ IES ensembles carry **no time stamp** for each observation, so plotting
 a transient series by `obgnme` needs the dates supplied separately. For a
 **Marthe** model these can be reconstructed directly from the model definition
-(module `pestpp_ies_post.marthe`), following Marthe's own rules:
+(module `puma.marthe`), following Marthe's own rules:
 
 1. **`.mart`** — the transient time-step budget
    (*"Nombre maximal possible de pas de temps … Transitoire"*, `0` = all) and
@@ -228,7 +228,7 @@ The ordered list of computed datetimes is then assigned chronologically to each
 transient group's observations. Use it via:
 
 ```python
-from pestpp_ies_post import IesResults, marthe, timeseries
+from puma import IesResults, marthe, timeseries
 res  = IesResults("mrn_ies.pst")
 meta = marthe.build_obs_meta(res, "mrn_v11.pastp", mart_file="mrn_v11.mart")
 timeseries.plot_obs_timeseries(res, "PLOTS/ts", obs_meta=meta)
@@ -295,7 +295,7 @@ ensembles, and phi files, then produces the full figure suite.
 ## Package layout
 
 ```
-pestpp_ies_post/
+puma/
     __init__.py        package API + __version__
     results.py         IesResults — autonomous discovery & loading
     plots.py           all diagnostic figure functions
@@ -305,7 +305,7 @@ pestpp_ies_post/
     utils.py           styling + goodness-of-fit metrics
     report.py          run_full_report — the orchestrator
     cli.py             command-line interface (puma)
-    __main__.py        enables `python -m pestpp_ies_post`
+    __main__.py        enables `python -m puma`
 pyproject.toml         packaging / console-script entry point
 run_ies_post.py        legacy CLI wrapper (delegates to cli.py)
 examples/
