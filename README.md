@@ -39,7 +39,7 @@ or from a local clone:
 
 ```bash
 git clone https://github.com/Ranveer82/PUMA.git
-cd Pestpp_Post
+cd PUMA
 pip install .            # or  pip install -e .   for a live/editable install
 ```
 
