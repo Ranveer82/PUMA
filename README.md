@@ -47,13 +47,13 @@ Core dependencies (`pyemu`, `pandas`, `numpy`, `matplotlib`, `scipy`) install
 automatically. Optional extras:
 
 ```bash
-pip install "pestpp_ies_post[spatial]"   # geopandas, for shapefile overlays
+pip install "puma[spatial]"   # geopandas, for shapefile overlays
 # pymarthe (Marthe field rendering) is installed separately from GitHub:
 pip install git+https://github.com/pymartheproject/pymarthe.git
 ```
 
-Installing adds a **`pestpp-ies-post`** console command; the toolbox also runs
-as `python -m pestpp_ies_post`.
+Installing adds a **`puma`** console command; the toolbox also runs
+as `python -m puma`.
 
 ---
 
@@ -63,28 +63,28 @@ as `python -m pestpp_ies_post`.
 
 ```bash
 # analyse a single case (console script installed with the package)
-pestpp-ies-post path/to/case.pst
+puma path/to/case.pst
 
 # equivalently, without installing:
 python -m pestpp_ies_post path/to/case.pst
 python run_ies_post.py path/to/case.pst          # legacy wrapper
 
 # let it find the .pst inside a directory, custom output folder
-pestpp-ies-post /runs/model_ies -o my_plots
+puma /runs/model_ies -o my_plots
 
 # analyse an earlier iteration as the posterior; pick a prior baseline
-pestpp-ies-post case.pst --iteration 3 --prior-iteration 0
+puma case.pst --iteration 3 --prior-iteration 0
 
 # Marthe: obs datetimes from the model, group fit plots by obs type,
 # and reconstruct per-cell posterior fields for layer 2
-pestpp-ies-post case.pst --marthe-pastp mrn_v11.pastp --marthe-mart mrn_v11.mart \
+puma case.pst --marthe-pastp mrn_v11.pastp --marthe-mart mrn_v11.mart \
     --histo mrn_v11.histo --marthe-config configuration.config --field-layer 2
 
 # just print what was discovered and exit
-pestpp-ies-post case.pst --summary-only
+puma case.pst --summary-only
 ```
 
-Run `pestpp-ies-post --help` for the full flag list (grouped into iteration
+Run `puma --help` for the full flag list (grouped into iteration
 selection, time series, and spatial options).
 
 ### Python API
@@ -304,7 +304,7 @@ pestpp_ies_post/
     spatial.py         spatial accuracy/uncertainty maps (+ optional pymarthe)
     utils.py           styling + goodness-of-fit metrics
     report.py          run_full_report — the orchestrator
-    cli.py             command-line interface (pestpp-ies-post)
+    cli.py             command-line interface (puma)
     __main__.py        enables `python -m pestpp_ies_post`
 pyproject.toml         packaging / console-script entry point
 run_ies_post.py        legacy CLI wrapper (delegates to cli.py)

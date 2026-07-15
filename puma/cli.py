@@ -2,9 +2,9 @@
 cli.py
 ======
 
-Command-line interface for the ``pestpp_ies_post`` toolbox.  Installed as the
+Command-line interface for the ``puma`` toolbox.  Installed as the
 ``pestpp-ies-post`` console script (see ``pyproject.toml``); also runnable as
-``python -m pestpp_ies_post``.
+``python -m puma``.
 
 Point it at a ``.pst`` file (or a directory containing one) and it produces the
 full diagnostic figure suite.  Flexible inputs let you pick the iteration to
@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="output directory for figures "
                         "(default: PLOTS_PESTPP_IES)")
     p.add_argument("--version", action="version",
-                   version=f"pestpp_ies_post {__version__}")
+                   version=f"puma {__version__}")
 
     g_it = p.add_argument_group("iteration selection")
     g_it.add_argument("--iteration", type=int, default=None,

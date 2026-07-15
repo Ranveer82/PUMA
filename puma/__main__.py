@@ -1,4 +1,4 @@
-"""Enable ``python -m pestpp_ies_post``."""
+"""Enable ``python -m puma``."""
 from .cli import main
 
 if __name__ == "__main__":

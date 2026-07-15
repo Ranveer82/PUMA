@@ -3,7 +3,7 @@ plots.py
 ========
 
 Plotting routines for post-processing a PEST++ IES run.  Every function
-takes an :class:`~pestpp_ies_post.results.IesResults` instance plus an output
+takes an :class:`~puma.results.IesResults` instance plus an output
 directory and returns the path(s) of the figure(s) written.  All functions
 degrade gracefully: if the data they need is not available they log a message
 and return ``None`` instead of raising.

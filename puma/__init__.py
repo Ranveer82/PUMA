@@ -1,5 +1,5 @@
 """
-pestpp_ies_post
+puma
 ===============
 
 An autonomous post-processing toolbox for PEST++ IES (iterative ensemble
@@ -10,11 +10,11 @@ configuration required.
 
 Quick start
 -----------
->>> from pestpp_ies_post import run_full_report
+>>> from puma import run_full_report
 >>> run_full_report("path/to/case.pst", output_dir="PLOTS")
 
 Or drive individual pieces:
->>> from pestpp_ies_post import IesResults, plots
+>>> from puma import IesResults, plots
 >>> res = IesResults("case.pst")
 >>> print(res.summary())
 >>> plots.plot_one_to_one(res, "PLOTS")
