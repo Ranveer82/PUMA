@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PUMA"
-version = "0.1.0"
+version = "0.1.1"
 description = "(Post-processing for Uncertainty analysis and MARTHE cAlibration)- Autonomous post-processing and diagnostic plots for PEST++ IES (iterative ensemble smoother) runs, with optional Marthe/pymarthe spatial support."
 readme = "README.md"
 requires-python = ">=3.8"

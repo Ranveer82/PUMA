@@ -20,7 +20,7 @@ Or drive individual pieces:
 >>> plots.plot_one_to_one(res, "PLOTS")
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .results import IesResults
 from .report import run_full_report

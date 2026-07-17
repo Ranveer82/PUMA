@@ -369,6 +369,7 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
     prior_it = res.prior_iter if prior_iteration is None else int(prior_iteration)
     prior = res.par_ensemble(prior_it)
     post = res.par_ensemble(post_it)
+    pp_nme = None
     if prior is None or post is None:
         print("[puma] spatial: parameter ensembles unavailable; skipping pp")
         return []
@@ -377,6 +378,7 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
             print("[puma] spatial: no pilot-point coordinates; skipping pp")
             return []
         pp_coords = parse_pilot_points(pp_file)
+        pp_nme = pp_file.split("/")[-1].split(".")[0]
 
     pp_coords = pp_coords.copy()
     pp_coords["parnme"] = pp_coords["parnme"].astype(str)
@@ -439,7 +441,7 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_aspect("equal")
-        fname = f"{res.case}_SPATIAL_pp_{col}.png"
+        fname = f"{res.case}_SPATIAL_pp_{pp_nme}_{col}.png"
         fig.savefig(out / fname)
         plt.close(fig)
         written.append(out / fname)
