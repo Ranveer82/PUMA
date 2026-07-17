@@ -191,7 +191,7 @@ def build_computed_datetimes(pastp_file: str,
             computed = df.loc[df["flag"].isin(computed_flags), "date"]
             dates.extend(computed.tolist())
         else:
-            print(f"[ies-post] Marthe: action file '{action_file}' not found "
+            print(f"[puma] Marthe: action file '{action_file}' not found "
                   f"next to the .pastp; falling back to all model steps")
             info = parse_pastp(str(pastp_path), collect_all_steps=True)
             dates = ([start_date] if start_date is not None else []) \
@@ -233,9 +233,9 @@ def build_obs_meta(res: IesResults,
     """
     dt = build_computed_datetimes(pastp_file, mart_file=mart_file)
     if len(dt) == 0:
-        print("[ies-post] Marthe: no computed datetimes reconstructed")
+        print("[puma] Marthe: no computed datetimes reconstructed")
         return None
-    print(f"[ies-post] Marthe: reconstructed {len(dt)} computed datetimes "
+    print(f"[puma] Marthe: reconstructed {len(dt)} computed datetimes "
           f"({dt[0].date()} -> {dt[-1].date()})")
 
     obs = res.pst.observation_data
@@ -255,7 +255,7 @@ def build_obs_meta(res: IesResults,
             grp_dt = dt[len(dt) - n:]        # align to the tail (warm-up dropped)
         else:
             n_skip += 1
-            print(f"[ies-post] Marthe: group '{grp}' has {n} obs > "
+            print(f"[puma] Marthe: group '{grp}' has {n} obs > "
                   f"{len(dt)} datetimes; skipping")
             continue
         for name, d in zip(names, grp_dt):
@@ -264,5 +264,5 @@ def build_obs_meta(res: IesResults,
 
     if not records:
         return None
-    print(f"[ies-post] Marthe: dated {n_ok} group(s), skipped {n_skip}")
+    print(f"[puma] Marthe: dated {n_ok} group(s), skipped {n_skip}")
     return pd.DataFrame(records, columns=["obsnme", "site", "datetime"])

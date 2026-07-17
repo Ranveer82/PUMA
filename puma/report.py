@@ -51,6 +51,8 @@ def run_full_report(pst_file: str,
                     field_prop: Optional[str] = None,
                     field_layer: int = 0,
                     field_max_reals: Optional[int] = None,
+                    obs_type_map: Optional[dict] = None,
+                    auto_discover: bool = True,
                     make_timeseries: bool = True,
                     verbose: bool = True) -> List[Path]:
     """Run every applicable plot for a PEST++ IES case.
@@ -72,7 +74,7 @@ def run_full_report(pst_file: str,
     marthe_pastp:
         Optional path to the Marthe ``.pastp`` file.  When given, the transient
         observation datetimes are reconstructed from the model definition (see
-        :mod:`pestpp_ies_post.marthe`) and used for the time-series figures -
+        :mod:`puma.marthe`) and used for the time-series figures -
         no external date lookup required.  Takes precedence over
         ``obs_meta_csv``.
     marthe_mart:
@@ -81,7 +83,7 @@ def run_full_report(pst_file: str,
     histo_file:
         Optional Marthe ``.histo`` file.  When given, spatial maps of posterior
         accuracy / uncertainty / reliability are drawn at the observation
-        locations (:mod:`pestpp_ies_post.spatial`).
+        locations (:mod:`puma.spatial`).
     pp_file:
         Optional pilot-point file (``name x y zone parval``).  When given,
         spatial maps of pilot-point posterior value / spread / uncertainty
@@ -116,13 +118,33 @@ def run_full_report(pst_file: str,
     # reads res.posterior_iter / res.prior_iter, so this propagates everywhere
     if iteration is not None:
         if iteration not in res.available_iters:
-            print(f"[ies-post] warning: iteration {iteration} not found "
+            print(f"[puma] warning: iteration {iteration} not found "
                   f"(available {res.available_iters}); using "
                   f"{res.posterior_iter}")
         else:
             res.posterior_iter = iteration
     if prior_iteration is not None:
         res.prior_iter = prior_iteration
+
+    # auto-discover the Marthe model files next to the .pst and use them as
+    # defaults for any spatial/time-series input the caller left unset
+    disc = res.discover_marthe_files() if auto_discover else {
+        "histo": None, "pastp": None, "mart": None, "rma": None, "config": None}
+    _auto = []
+    if histo_file is None and disc["histo"]:
+        histo_file = disc["histo"]; _auto.append("histo")
+    if marthe_pastp is None and disc["pastp"]:
+        marthe_pastp = disc["pastp"]; _auto.append("pastp")
+    if marthe_mart is None and disc["mart"]:
+        marthe_mart = disc["mart"]; _auto.append("mart")
+    if marthe_rma is None and disc["rma"]:
+        marthe_rma = disc["rma"]; _auto.append("rma")
+    if marthe_config is None and disc["config"]:
+        marthe_config = disc["config"]; _auto.append("config")
+    if _auto:
+        print(f"[puma] auto-detected Marthe files in the .pst folder: "
+              f"{', '.join(_auto)}")
+
     print("\n" + "=" * 64)
     print(res.summary())
     print("=" * 64 + "\n")
@@ -141,20 +163,23 @@ def run_full_report(pst_file: str,
 
     written: List[Path] = []
     for func, kwargs, label in _PIPELINE:
-        print(f"[ies-post] --> {label}")
+        print(f"[puma] --> {label}")
         call_kwargs = dict(kwargs)
-        if histo_file and func in _histo_aware:
-            call_kwargs["histo_file"] = histo_file
+        if func in _histo_aware:
+            if histo_file:
+                call_kwargs["histo_file"] = histo_file
+            if obs_type_map:
+                call_kwargs["obs_type_map"] = obs_type_map
         try:
             result = func(res, str(out), **call_kwargs)
             if result is not None:
                 written.append(result)
         except Exception:  # noqa: BLE001 - keep the pipeline alive
-            print(f"[ies-post] !! '{label}' failed:")
+            print(f"[puma] !! '{label}' failed:")
             traceback.print_exc()
 
     if make_timeseries:
-        print("[ies-post] --> time series")
+        print("[puma] --> time series")
         try:
             ts_dir = out / "timeseries"
             obs_meta = None
@@ -166,29 +191,29 @@ def run_full_report(pst_file: str,
                 res, str(ts_dir), obs_meta=obs_meta, obs_meta_csv=obs_meta_csv)
             written.extend(paths)
         except Exception:  # noqa: BLE001
-            print("[ies-post] !! time series failed:")
+            print("[puma] !! time series failed:")
             traceback.print_exc()
 
     # ---- spatial maps (only when coordinates / model files are supplied) ----
     if histo_file:
-        print("[ies-post] --> spatial obs performance")
+        print("[puma] --> spatial obs performance")
         try:
             written.extend(spatial.plot_spatial_obs_performance(
                 res, str(out), histo_file=histo_file, shapefiles=shapefiles,
                 model_rma=marthe_rma))
         except Exception:  # noqa: BLE001
-            print("[ies-post] !! spatial obs performance failed:")
+            print("[puma] !! spatial obs performance failed:")
             traceback.print_exc()
     if pp_file:
-        print("[ies-post] --> pilot-point uncertainty")
+        print("[puma] --> pilot-point uncertainty")
         try:
             written.extend(spatial.plot_pilotpoint_uncertainty(
                 res, str(out), pp_file=pp_file, shapefiles=shapefiles))
         except Exception:  # noqa: BLE001
-            print("[ies-post] !! pilot-point uncertainty failed:")
+            print("[puma] !! pilot-point uncertainty failed:")
             traceback.print_exc()
     if marthe_rma:
-        print("[ies-post] --> Marthe property field")
+        print("[puma] --> Marthe property field")
         try:
             fig = spatial.plot_marthe_property_field(
                 res, str(out), model_rma=marthe_rma,
@@ -197,17 +222,17 @@ def run_full_report(pst_file: str,
             if fig is not None:
                 written.append(fig)
         except Exception:  # noqa: BLE001
-            print("[ies-post] !! Marthe property field failed:")
+            print("[puma] !! Marthe property field failed:")
             traceback.print_exc()
     if marthe_config:
-        print("[ies-post] --> posterior field statistics (mixed pp + ZPC)")
+        print("[puma] --> posterior field statistics (mixed pp + ZPC)")
         try:
             written.extend(spatial.plot_posterior_field_stats(
                 res, str(out), configfile=marthe_config, prop=field_prop,
                 layer=field_layer, max_reals=field_max_reals))
         except Exception:  # noqa: BLE001
-            print("[ies-post] !! posterior field statistics failed:")
+            print("[puma] !! posterior field statistics failed:")
             traceback.print_exc()
 
-    print(f"\n[ies-post] DONE - {len(written)} figure(s) written to {out}\n")
+    print(f"\n[puma] DONE - {len(written)} figure(s) written to {out}\n")
     return written

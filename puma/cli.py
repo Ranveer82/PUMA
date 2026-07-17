@@ -3,7 +3,7 @@ cli.py
 ======
 
 Command-line interface for the ``puma`` toolbox.  Installed as the
-``pestpp-ies-post`` console script (see ``pyproject.toml``); also runnable as
+``puma`` console script (see ``pyproject.toml``); also runnable as
 ``python -m puma``.
 
 Point it at a ``.pst`` file (or a directory containing one) and it produces the
@@ -14,17 +14,17 @@ on.
 Examples
 --------
     # analyse a single case (all defaults)
-    pestpp-ies-post case.pst
+    puma case.pst
 
     # inspect an earlier iteration as the "posterior"
-    pestpp-ies-post case.pst --iteration 3
+    puma case.pst --iteration 3
 
     # group obs fit plots by observation type, spatial maps + field stats
-    pestpp-ies-post case.pst --histo model.histo --marthe-rma model.rma \\
+    puma case.pst --histo model.histo --marthe-rma model.rma \\
         --marthe-config configuration.config --field-prop permh --field-layer 2
 
     # just print what was discovered and exit
-    pestpp-ies-post case.pst --summary-only
+    puma case.pst --summary-only
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from . import __version__
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="pestpp-ies-post",
+        prog="puma",
         description="Autonomous post-processing of a PEST++ IES run.")
     p.add_argument("pst", help="path to .pst control file or its directory")
     p.add_argument("-o", "--output", default="PLOTS_PESTPP_IES",
@@ -93,12 +93,37 @@ def build_parser() -> argparse.ArgumentParser:
                       help="layer for the field figures (default 0)")
     g_sp.add_argument("--field-max-reals", type=int, default=None,
                       help="cap on realisations reconstructed for field stats")
+    g_sp.add_argument("--no-auto-detect", action="store_true",
+                      help="do not auto-detect Marthe model files "
+                           "(.histo/.pastp/.mart/.rma/.config) in the .pst "
+                           "folder")
+
+    g_gr = p.add_argument_group("observation grouping")
+    g_gr.add_argument("--obs-type-map", default=None, metavar="SPEC",
+                      help="classify obs groups into types by name prefix, "
+                           "e.g. 'Charge=c,h,w;Debit=d,q' (group starting "
+                           "with c/h/w -> Charge). Takes precedence over "
+                           "--histo for grouping the fit plots.")
 
     p.add_argument("--summary-only", action="store_true",
                    help="print the discovered inventory and exit")
     p.add_argument("-q", "--quiet", action="store_true",
                    help="reduce logging")
     return p
+
+
+def _parse_type_map(spec):
+    """Parse 'Charge=c,h,w;Debit=d,q' into {'Charge': ['c','h','w'], ...}."""
+    if not spec:
+        return None
+    out = {}
+    for chunk in spec.split(";"):
+        chunk = chunk.strip()
+        if not chunk or "=" not in chunk:
+            continue
+        label, prefs = chunk.split("=", 1)
+        out[label.strip()] = [p.strip() for p in prefs.split(",") if p.strip()]
+    return out or None
 
 
 def main(argv=None) -> int:
@@ -125,6 +150,8 @@ def main(argv=None) -> int:
         field_prop=args.field_prop,
         field_layer=args.field_layer,
         field_max_reals=args.field_max_reals,
+        obs_type_map=_parse_type_map(args.obs_type_map),
+        auto_discover=not args.no_auto_detect,
         make_timeseries=not args.no_timeseries,
         verbose=not args.quiet,
     )

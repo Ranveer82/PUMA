@@ -44,7 +44,7 @@ try:
     import pyemu
 except ImportError as exc:  # pragma: no cover - pyemu is a hard dependency
     raise ImportError(
-        "pyemu is required by pestpp_ies_post. Install it with "
+        "pyemu is required by puma. Install it with "
         "`pip install pyemu`."
     ) from exc
 
@@ -122,7 +122,7 @@ class IesResults:
     # ------------------------------------------------------------------
     def _log(self, msg: str) -> None:
         if self.verbose:
-            print(f"[ies-post] {msg}")
+            print(f"[puma] {msg}")
 
     # ------------------------------------------------------------------
     def _discover_iterations(self) -> None:
@@ -303,6 +303,62 @@ class IesResults:
                 "min", "max"}
         real_cols = [c for c in pa.columns if c not in meta]
         return row[real_cols].iloc[0].astype(float)
+
+    # ------------------------------------------------------------------
+    def discover_marthe_files(self) -> Dict[str, Optional[str]]:
+        """Locate the Marthe model input files sitting next to the ``.pst``.
+
+        A PEST++/Marthe run keeps the model files in the same directory as the
+        control file, all sharing the Marthe *model* stem (e.g. ``mrn_v11``),
+        which usually differs from the PEST case stem (``mrn_v11_v5``).  The
+        model stem is taken from the ``.rma`` project file; the ``.histo``,
+        ``.pastp`` and ``.mart`` companions are then just extension swaps.  The
+        ``pymarthe`` config is found by its ``.config`` extension.
+
+        Returns a dict with keys ``rma, histo, pastp, mart, config`` mapping to
+        absolute paths (as ``str``) or ``None`` when a file is absent.  Values
+        are only filled when the file actually exists, so callers can use them
+        as defaults directly.
+        """
+        found: Dict[str, Optional[str]] = {
+            "rma": None, "histo": None, "pastp": None,
+            "mart": None, "config": None,
+        }
+        d = self.base_dir
+        # model stem from the .rma project file (prefer a unique one)
+        rmas = sorted(d.glob("*.rma"))
+        model_stem = None
+        if len(rmas) == 1:
+            found["rma"] = str(rmas[0])
+            model_stem = rmas[0].stem
+        elif len(rmas) > 1:
+            # multiple: prefer one whose stem is a prefix of the case name
+            pick = next((r for r in rmas if self.case.startswith(r.stem)),
+                        rmas[0])
+            found["rma"] = str(pick)
+            model_stem = pick.stem
+
+        if model_stem is not None:
+            for key, ext in (("histo", ".histo"), ("pastp", ".pastp"),
+                             ("mart", ".mart")):
+                cand = d / f"{model_stem}{ext}"
+                if cand.exists():
+                    found[key] = str(cand)
+        else:
+            # no .rma: still try to find the companions by extension
+            for key, ext in (("histo", ".histo"), ("pastp", ".pastp"),
+                             ("mart", ".mart")):
+                hits = sorted(d.glob(f"*{ext}"))
+                if len(hits) == 1:
+                    found[key] = str(hits[0])
+
+        configs = sorted(d.glob("*.config"))
+        if configs:
+            # prefer 'configuration.config' if present, else the first
+            pick = next((c for c in configs if "config" in c.stem.lower()),
+                        configs[0])
+            found["config"] = str(pick)
+        return found
 
     # ------------------------------------------------------------------
     def summary(self) -> str:

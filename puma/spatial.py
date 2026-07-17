@@ -142,10 +142,10 @@ def build_obs_coords(res: IesResults,
     # only grid-cell references available -> convert via the model grid
     need = hd.dropna(subset=["col", "line"])
     if need.empty:
-        print("[ies-post] spatial: .histo has no usable coordinates; skipping")
+        print("[puma] spatial: .histo has no usable coordinates; skipping")
         return None
     if model_rma is None or not Path(model_rma).exists():
-        print("[ies-post] spatial: .histo uses grid-cell (/MAIL) references; "
+        print("[puma] spatial: .histo uses grid-cell (/MAIL) references; "
               "pass model_rma to convert them to x,y. Skipping.")
         return None
     xy = _cell_to_xy(model_rma, need)
@@ -163,7 +163,7 @@ def _cell_to_xy(model_rma: str, need: pd.DataFrame) -> Optional[pd.DataFrame]:
         from pymarthe import MartheModel
         from pymarthe.mfield import MartheField
     except Exception as exc:  # noqa: BLE001
-        print(f"[ies-post] spatial: pymarthe needed for cell->xy ({exc})")
+        print(f"[puma] spatial: pymarthe needed for cell->xy ({exc})")
         return None
     mm = MartheModel(_winpath(model_rma), spatial_index=False)
     prop = next(iter(getattr(mm, "prop", {})), None) or "permh"
@@ -181,7 +181,7 @@ def _cell_to_xy(model_rma: str, need: pd.DataFrame) -> Optional[pd.DataFrame]:
             out.append((r["site"], float(xy["x"]), float(xy["y"]),
                         r["layer"], r["obs_type"]))
     if not out:
-        print("[ies-post] spatial: no grid cells matched the /MAIL references")
+        print("[puma] spatial: no grid cells matched the /MAIL references")
         return None
     return pd.DataFrame(out, columns=["site", "x", "y", "layer", "obs_type"])
 
@@ -264,23 +264,23 @@ def plot_spatial_obs_performance(res: IesResults, output_dir: str,
     site_xy = build_obs_coords(res, histo_file=histo_file, coords=coords,
                                model_rma=model_rma)
     if site_xy is None:
-        print("[ies-post] spatial: no obs coordinates (need .histo or coords); "
+        print("[puma] spatial: no obs coordinates (need .histo or coords); "
               "skipping")
         return []
     if layer is not None and "layer" in site_xy.columns:
         site_xy = site_xy.loc[
             pd.to_numeric(site_xy["layer"], errors="coerce") == layer]
         if site_xy.empty:
-            print(f"[ies-post] spatial: no sites in layer {layer}; skipping")
+            print(f"[puma] spatial: no sites in layer {layer}; skipping")
             return []
     perf = _site_performance(res, ci=ci, iteration=iteration)
     if perf.empty:
-        print("[ies-post] spatial: no posterior obs ensemble; skipping")
+        print("[puma] spatial: no posterior obs ensemble; skipping")
         return []
 
     df = perf.merge(site_xy, on="site", how="inner").dropna(subset=["x", "y"])
     if df.empty:
-        print("[ies-post] spatial: no sites matched coordinates; skipping")
+        print("[puma] spatial: no sites matched coordinates; skipping")
         return []
     lay_tag = "" if layer is None else f"_L{layer}"
 
@@ -322,7 +322,7 @@ def plot_spatial_obs_performance(res: IesResults, output_dir: str,
         fig.savefig(out / fname)
         plt.close(fig)
         written.append(out / fname)
-        print(f"[ies-post]   saved {fname}")
+        print(f"[puma]   saved {fname}")
     return written
 
 
@@ -370,11 +370,11 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
     prior = res.par_ensemble(prior_it)
     post = res.par_ensemble(post_it)
     if prior is None or post is None:
-        print("[ies-post] spatial: parameter ensembles unavailable; skipping pp")
+        print("[puma] spatial: parameter ensembles unavailable; skipping pp")
         return []
     if pp_coords is None:
         if pp_file is None or not Path(pp_file).exists():
-            print("[ies-post] spatial: no pilot-point coordinates; skipping pp")
+            print("[puma] spatial: no pilot-point coordinates; skipping pp")
             return []
         pp_coords = parse_pilot_points(pp_file)
 
@@ -383,7 +383,7 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
     common = [p for p in pp_coords["parnme"]
               if p in prior.columns and p in post.columns]
     if not common:
-        print("[ies-post] spatial: pilot-point names do not match the "
+        print("[puma] spatial: pilot-point names do not match the "
               "ensemble columns; skipping pp")
         return []
     pp = pp_coords.set_index("parnme").loc[common]
@@ -443,7 +443,7 @@ def plot_pilotpoint_uncertainty(res: IesResults, output_dir: str,
         fig.savefig(out / fname)
         plt.close(fig)
         written.append(out / fname)
-        print(f"[ies-post]   saved {fname}")
+        print(f"[puma]   saved {fname}")
     return written
 
 
@@ -475,11 +475,11 @@ def plot_marthe_property_field(res: IesResults, output_dir: str,
         from pymarthe import MartheModel
         from pymarthe.mfield import MartheField
     except Exception as exc:  # noqa: BLE001
-        print(f"[ies-post] spatial: pymarthe not available ({exc}); "
+        print(f"[puma] spatial: pymarthe not available ({exc}); "
               f"skipping property-field plot")
         return None
     if not Path(model_rma).exists():
-        print(f"[ies-post] spatial: model file '{model_rma}' not found; "
+        print(f"[puma] spatial: model file '{model_rma}' not found; "
               f"skipping property-field plot")
         return None
 
@@ -538,7 +538,7 @@ def plot_marthe_property_field(res: IesResults, output_dir: str,
     fname = f"{res.case}_SPATIAL_field_{prop}_L{layer}.png"
     fig.savefig(out / fname)
     plt.close(fig)
-    print(f"[ies-post]   saved {fname}")
+    print(f"[puma]   saved {fname}")
     return out / fname
 
 
@@ -593,17 +593,17 @@ def reconstruct_field_ensemble(res: IesResults,
         from pymarthe.mfield import MartheField
         from pymarthe.utils import pest_utils
     except Exception as exc:  # noqa: BLE001
-        print(f"[ies-post] spatial: pymarthe unavailable ({exc}); "
+        print(f"[puma] spatial: pymarthe unavailable ({exc}); "
               f"cannot reconstruct fields")
         return None
     if not Path(configfile).exists():
-        print(f"[ies-post] spatial: config '{configfile}' not found")
+        print(f"[puma] spatial: config '{configfile}' not found")
         return None
 
     it = res.posterior_iter if iteration is None else iteration
     ens = res._load_ensemble(it, "par")  # native pst (estimation) space
     if ens is None:
-        print("[ies-post] spatial: parameter ensemble unavailable")
+        print("[puma] spatial: parameter ensemble unavailable")
         return None
     reals = list(ens.index)
     if max_reals:
@@ -616,7 +616,7 @@ def reconstruct_field_ensemble(res: IesResults,
     # pick the grid parameter block for the requested property
     grid_pdics = [p for p in pdics if p.get("type") == "grid"]
     if not grid_pdics:
-        print("[ies-post] spatial: no 'grid' parameter block in config")
+        print("[puma] spatial: no 'grid' parameter block in config")
         return None
     pdic = next((p for p in grid_pdics if p["property name"] == prop),
                 grid_pdics[0])
@@ -650,7 +650,7 @@ def reconstruct_field_ensemble(res: IesResults,
         _os.chdir(cwd)
 
     import numpy as _np
-    print(f"[ies-post] spatial: reconstructed {prop} for {len(reals)} "
+    print(f"[puma] spatial: reconstructed {prop} for {len(reals)} "
           f"realisation(s) over {stack[0].size} cells")
     return mm, prop, _np.asarray(layers), _np.vstack(stack)
 
@@ -703,7 +703,7 @@ def plot_posterior_field_stats(res: IesResults, output_dir: str,
         try:
             fld.plot(ax=ax, layer=layer, log=use_log)
         except Exception as exc:  # noqa: BLE001
-            print(f"[ies-post] spatial: field plot failed for {stat_name} "
+            print(f"[puma] spatial: field plot failed for {stat_name} "
                   f"({exc})")
             plt.close(fig)
             continue
@@ -714,7 +714,7 @@ def plot_posterior_field_stats(res: IesResults, output_dir: str,
         fig.savefig(out / fname)
         plt.close(fig)
         written.append(out / fname)
-        print(f"[ies-post]   saved {fname}")
+        print(f"[puma]   saved {fname}")
     return written
 
 
@@ -726,7 +726,7 @@ def _read_shapefiles(shapefiles: Optional[List[str]]):
     try:
         import geopandas as gpd
     except Exception:  # noqa: BLE001
-        print("[ies-post] spatial: geopandas not installed; "
+        print("[puma] spatial: geopandas not installed; "
               "skipping shapefile overlay")
         return []
     gdfs = []

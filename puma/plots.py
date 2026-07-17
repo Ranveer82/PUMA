@@ -60,7 +60,7 @@ def _ensure_dir(output_dir: str) -> Path:
 def _save(fig, path: Path) -> Path:
     fig.savefig(path)
     plt.close(fig)
-    print(f"[ies-post]   saved {path.name}")
+    print(f"[puma]   saved {path.name}")
     return path
 
 
@@ -93,37 +93,119 @@ def _unit_for_type(otype: str) -> str:
     return "m"
 
 
+def _normalise_type_map(obs_type_map: dict) -> "list[tuple[str, str]]":
+    """Return ``[(prefix_lower, type_label), ...]`` sorted longest-prefix first.
+
+    Accepts either ``{type_label: [prefixes]}`` (e.g.
+    ``{"Charge": ["c", "h", "w"]}``) or ``{prefix: type_label}`` (e.g.
+    ``{"c": "Charge"}``).  Matching is by case-insensitive prefix; the longest
+    matching prefix wins so more specific rules take precedence.
+    """
+    pairs: "list[tuple[str, str]]" = []
+    for k, v in obs_type_map.items():
+        if isinstance(v, (list, tuple, set)):
+            for pref in v:                      # {type: [prefixes]}
+                pairs.append((str(pref).lower(), str(k)))
+        else:                                   # {prefix: type}
+            pairs.append((str(k).lower(), str(v)))
+    pairs.sort(key=lambda t: len(t[0]), reverse=True)
+    return pairs
+
+
+def _classify_by_prefix(groups: pd.Series, obs_type_map: dict) -> pd.Series:
+    """Classify each group name by the first matching prefix rule."""
+    rules = _normalise_type_map(obs_type_map)
+    gl = groups.astype(str).str.strip().str.lower()
+
+    def _lookup(g: str) -> Optional[str]:
+        for pref, label in rules:
+            if g.startswith(pref):
+                return label
+        return None
+
+    # cache per unique group for speed on large obs sets
+    uniq = {g: _lookup(g) for g in gl.unique()}
+    return gl.map(uniq)
+
+
 def _obs_panel_map(res: IesResults, obs: pd.DataFrame,
-                   histo_file: Optional[str]):
+                   histo_file: Optional[str],
+                   obs_type_map: Optional[dict] = None):
     """Map each non-zero observation to a panel key.
 
-    With a Marthe ``.histo`` the panel key is the **observation type**
-    (Charge, Debit_Rivi, Hauteu_Rivi, ...) obtained from the file, so plots are
-    grouped by physical quantity instead of by the (possibly hundreds of)
-    individual sites.  Without it the key is the observation group (obgnme).
+    Panel key precedence:
+
+    1. ``obs_type_map`` - classify the observation group (obgnme) by a prefix
+       dictionary, e.g. ``{"Charge": ["c", "h", "w"], "Debit": ["d", "q"]}``
+       (group starting with c/h/w -> Charge, ...).  Useful when there is no
+       ``.histo`` or its names do not match the pst groups.
+    2. a Marthe ``.histo`` - panel key is the **observation type**
+       (Charge, Debit_Rivi, Hauteu_Rivi, ...) read from the file.
+    3. otherwise the panel key is the observation group (obgnme).
 
     Returns ``(panel_of, units, source)`` where ``panel_of`` is a Series
     indexed like ``obs`` giving the panel key, ``units`` maps panel key -> unit
     label, and ``source`` describes the grouping.
     """
+    if obs_type_map:
+        mapped = _classify_by_prefix(obs["obgnme"], obs_type_map)
+        n_typed = int(mapped.notna().sum())
+        if n_typed > 0:
+            panel_of = mapped.where(mapped.notna(), "unclassified")
+            n_types = int(pd.unique(panel_of).size)
+            n_unc = int((mapped.isna()).sum())
+            msg = (f"[puma] obs-type-map: classified {n_typed}/{len(obs)} obs "
+                   f"into {n_types} type(s)")
+            if n_unc:
+                msg += f" ({n_unc} unclassified)"
+            print(msg)
+            units = {t: _unit_for_type(t) for t in pd.unique(panel_of)}
+            return panel_of, units, "obs type (prefix map)"
+        print("[puma] obs-type-map matched no groups; falling back")
+
     if histo_file and Path(histo_file).exists():
         try:
             from .spatial import parse_marthe_histo
             hd = parse_marthe_histo(histo_file)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            print(f"[puma] could not parse .histo ({exc}); grouping by group")
             hd = None
         if hd is not None and not hd.empty:
             name2type = dict(zip(
                 hd["name"].astype(str).str.strip().str.lower(),
                 hd["obs_type"].astype(str).str.strip()))
-            gp = obs["obgnme"].astype(str).str.strip().str.lower()
-            panel_of = gp.map(name2type)
-            # obs whose group is not in the histo keep their group name
-            panel_of = panel_of.where(panel_of.notna(), obs["obgnme"])
-            units = {t: _unit_for_type(t) for t in panel_of.unique()}
-            return panel_of, units, "obs type (.histo)"
+            groups = obs["obgnme"].astype(str)
+            gl = groups.str.strip().str.lower()
+            mapped = gl.map(name2type)
+
+            # substring fallback for groups that don't match a histo name
+            # exactly (e.g. a prefix/suffix differs between pst group and site)
+            unmatched = mapped.isna()
+            if unmatched.any():
+                histo_names = list(name2type)
+                fb = {}
+                for g in gl[unmatched].unique():
+                    hit = next((h for h in histo_names
+                                if h and (h in g or g in h)), None)
+                    if hit is not None:
+                        fb[g] = name2type[hit]
+                if fb:
+                    mapped = mapped.where(~unmatched, gl.map(fb))
+
+            n_typed = int(mapped.notna().sum())
+            n_groups_typed = int(gl[mapped.notna()].nunique())
+            n_groups = int(gl.nunique())
+            if n_typed > 0:
+                panel_of = mapped.where(mapped.notna(), groups)
+                n_types = int(mapped.dropna().nunique())
+                print(f"[puma] .histo: matched {n_groups_typed}/{n_groups} "
+                      f"obs groups to {n_types} observation type(s)")
+                units = {t: _unit_for_type(t) for t in pd.unique(panel_of)}
+                return panel_of, units, "obs type (.histo)"
+            print("[puma] .histo parsed but no group names matched its "
+                  "site names; grouping by observation group instead")
     panel_of = obs["obgnme"].astype(str)
-    return panel_of, {g: "" for g in panel_of.unique()}, "obs group"
+    return panel_of, {g: "" for g in pd.unique(panel_of)}, "obs group"
 
 
 # ======================================================================
@@ -140,7 +222,7 @@ def plot_phi_convergence(res: IesResults, output_dir: str,
     pa = res.phi_actual()
     pm = res.phi_meas()
     if pa is None and pm is None:
-        print("[ies-post] no phi.*.csv found; skipping phi convergence")
+        print("[puma] no phi.*.csv found; skipping phi convergence")
         return None
 
     utils.apply_style()
@@ -190,7 +272,7 @@ def plot_phi_distribution(res: IesResults, output_dir: str) -> Optional[Path]:
     prior = res.realized_phi(res.prior_iter)
     post = res.realized_phi(res.posterior_iter)
     if prior is None and post is None:
-        print("[ies-post] no realised phi available; skipping phi distribution")
+        print("[puma] no realised phi available; skipping phi distribution")
         return None
 
     utils.apply_style()
@@ -236,7 +318,7 @@ def plot_phi_by_group(res: IesResults, output_dir: str) -> Optional[Path]:
     """
     pg = res.phi_group()
     if pg is None:
-        print("[ies-post] no phi.group.csv; skipping phi-by-group")
+        print("[puma] no phi.group.csv; skipping phi-by-group")
         return None
 
     # PEST++ writes phi.group.csv with one row per realisation per iteration
@@ -249,7 +331,7 @@ def plot_phi_by_group(res: IesResults, output_dir: str) -> Optional[Path]:
     # drop pure-regularisation / all-zero groups so the plot stays readable
     grp_cols = [c for c in grp_cols if pg[c].abs().sum() > 0]
     if not grp_cols:
-        print("[ies-post] phi.group.csv has no non-zero group columns; skipping")
+        print("[puma] phi.group.csv has no non-zero group columns; skipping")
         return None
 
     first = pg.loc[pg.iteration == pg.iteration.min(), grp_cols].mean()
@@ -293,9 +375,10 @@ def plot_one_to_one(res: IesResults, output_dir: str,
                     iteration: Optional[int] = None,
                     prior_iteration: Optional[int] = None,
                     ci: tuple[float, float] = (0.05, 0.95),
-                    max_points: int = 4000,
+                    max_points: int = 10000,
                     max_group_panels: int = 12,
-                    histo_file: Optional[str] = None) -> Optional[Path]:
+                    histo_file: Optional[str] = None,
+                    obs_type_map: Optional[dict] = None) -> Optional[Path]:
     """Measured vs simulated 1:1 scatter with posterior uncertainty.
 
     Each marker is the *posterior ensemble mean* simulated value; the error
@@ -312,21 +395,43 @@ def plot_one_to_one(res: IesResults, output_dir: str,
     group; and if that still yields more than ``max_group_panels`` panels the
     figure collapses to a single combined panel over all weighted obs.
     """
+    phi_actual = res.phi_actual()
+    
+    real_mask = [v>0 for v in phi_actual.iloc[res.posterior_iter, 6:-1].values]
+    ac_idx = phi_actual.columns[6:-1][real_mask]
+
     post_it, prior_it = _resolve_iters(res, iteration, prior_iteration)
+
     post = res.obs_ensemble(post_it)
+    post = post.loc[post.index.isin(ac_idx)]
+    
     if post is None:
-        print("[ies-post] no posterior obs ensemble; skipping 1:1 plot")
-        return None
-    prior = res.obs_ensemble(prior_it)
-    obs = _obs_meta(res)
-    post_cols = set(post.columns)
-    obs = obs.loc[obs.index.isin(post_cols)]
-    if obs.empty:
-        print("[ies-post] no non-zero obs found in ensemble; skipping 1:1")
+        print("[puma] no posterior obs ensemble; skipping 1:1 plot")
         return None
 
-    panel_of, units, source = _obs_panel_map(res, obs, histo_file)
-    panels = list(pd.unique(panel_of))
+    prior = res.obs_ensemble(prior_it)
+    prior = prior.loc[prior.index.isin(ac_idx)]
+    obs = _obs_meta(res)
+
+    # Remove invalid measured
+    obsval = pd.to_numeric(obs["obsval"], errors="coerce")
+    valid_obs = obsval.notna() & obsval.ne(-9999.0)
+
+    obs = obs.loc[valid_obs].copy()
+    obs["obsval"] = obsval.loc[valid_obs]
+
+    
+    post_cols = set(post.columns)
+    obs = obs.loc[obs.index.isin(post_cols)]
+
+    if obs.empty:
+        print("[puma] no valid observations found; skipping 1:1 plot")
+        return None
+
+    panel_of, units, source = _obs_panel_map(
+        res, obs, histo_file, obs_type_map
+    )
+    panels = sorted(pd.unique(panel_of), key=str)
 
     # still too many panels and no type grouping -> single combined panel
     if len(panels) > max_group_panels:
@@ -497,7 +602,8 @@ def plot_residual_histograms(res: IesResults, output_dir: str,
                              prior_iteration: Optional[int] = None,
                              clip_pct: tuple[float, float] = (2, 98),
                              max_group_panels: int = 12,
-                             histo_file: Optional[str] = None) -> Optional[Path]:
+                             histo_file: Optional[str] = None,
+                             obs_type_map: Optional[dict] = None) -> Optional[Path]:
     """Residual (simulated - measured) distributions, prior vs posterior.
 
     One panel per **observation type** when a Marthe ``histo_file`` is given,
@@ -507,13 +613,13 @@ def plot_residual_histograms(res: IesResults, output_dir: str,
     post_it, prior_it = _resolve_iters(res, iteration, prior_iteration)
     post = res.obs_ensemble(post_it)
     if post is None:
-        print("[ies-post] no posterior obs ensemble; skipping residual hist")
+        print("[puma] no posterior obs ensemble; skipping residual hist")
         return None
     prior = res.obs_ensemble(prior_it)
     obs = _obs_meta(res)
     obs = obs.loc[obs.index.isin(set(post.columns))]
-    panel_of, units, source = _obs_panel_map(res, obs, histo_file)
-    panels = list(pd.unique(panel_of))
+    panel_of, units, source = _obs_panel_map(res, obs, histo_file, obs_type_map)
+    panels = sorted(pd.unique(panel_of), key=str)
     combined = len(panels) > max_group_panels
     if combined:
         panels = ["__all__"]
@@ -587,7 +693,8 @@ def plot_residual_histograms(res: IesResults, output_dir: str,
 # ======================================================================
 def plot_residual_vs_simulated(res: IesResults, output_dir: str,
                                iteration: Optional[int] = None,
-                               histo_file: Optional[str] = None
+                               histo_file: Optional[str] = None,
+                               obs_type_map: Optional[dict] = None
                                ) -> Optional[Path]:
     """Posterior mean residual against simulated value, coloured by obs type.
 
@@ -599,12 +706,12 @@ def plot_residual_vs_simulated(res: IesResults, output_dir: str,
     post_it, _ = _resolve_iters(res, iteration, None)
     post = res.obs_ensemble(post_it)
     if post is None:
-        print("[ies-post] no posterior obs ensemble; skipping residual-vs-sim")
+        print("[puma] no posterior obs ensemble; skipping residual-vs-sim")
         return None
     obs = _obs_meta(res)
     obs = obs.loc[obs.index.isin(set(post.columns))]
-    panel_of, _units, source = _obs_panel_map(res, obs, histo_file)
-    panels = list(pd.unique(panel_of))
+    panel_of, _units, source = _obs_panel_map(res, obs, histo_file, obs_type_map)
+    panels = sorted(pd.unique(panel_of), key=str)
 
     utils.apply_style()
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -651,7 +758,7 @@ def plot_parameter_distributions(res: IesResults, output_dir: str,
     prior = res.par_ensemble(prior_it)
     post = res.par_ensemble(post_it)
     if prior is None or post is None:
-        print("[ies-post] par ensembles unavailable; skipping par distributions")
+        print("[puma] par ensembles unavailable; skipping par distributions")
         return None
 
     pdata = res.pst.parameter_data
@@ -735,7 +842,7 @@ def plot_parameter_uncertainty_reduction(res: IesResults, output_dir: str,
     prior = res.par_ensemble(prior_it)
     post = res.par_ensemble(post_it)
     if prior is None or post is None:
-        print("[ies-post] par ensembles unavailable; skipping unc-reduction")
+        print("[puma] par ensembles unavailable; skipping unc-reduction")
         return None
 
     pdata = res.pst.parameter_data
@@ -785,7 +892,7 @@ def plot_forecast_uncertainty(res: IesResults, output_dir: str,
     """
     forecasts = res.pst.forecast_names
     if forecasts is None or len(forecasts) == 0:
-        print("[ies-post] no forecasts declared; skipping forecast plot")
+        print("[puma] no forecasts declared; skipping forecast plot")
         return None
     post_it, prior_it = _resolve_iters(res, iteration, prior_iteration)
     prior = res.obs_ensemble(prior_it)
@@ -859,19 +966,26 @@ def plot_ensemble_coverage(res: IesResults, output_dir: str,
     post_it, _ = _resolve_iters(res, iteration, None)
     post = res.obs_ensemble(post_it)
     if post is None:
-        print("[ies-post] no posterior obs ensemble; skipping coverage plot")
+        print("[puma] no posterior obs ensemble; skipping coverage plot")
         return None
     obs = _obs_meta(res)
     names = [n for n in obs.index if n in post.columns]
     if not names:
         return None
     meas = obs.loc[names, "obsval"].astype(float).values
-
+    valid = (
+            np.isfinite(meas)
+            & (meas != -9999)
+            )
+    meas = meas[valid]
+    
     nominal = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95])
     empirical = []
     for p in nominal:
         lo = post[names].quantile((1 - p) / 2, axis=0).values
+        lo = lo[valid]
         hi = post[names].quantile(1 - (1 - p) / 2, axis=0).values
+        hi = hi[valid]
         empirical.append(coverage_fraction(meas, lo, hi))
     empirical = np.array(empirical)
 
@@ -911,58 +1025,55 @@ def plot_prior_data_conflict(res: IesResults, output_dir: str,
     meaning the prior cannot reproduce it and it may bias the calibration.
     """
     obs = _obs_meta(res)
-    _, prior_it = _resolve_iters(res, None, prior_iteration)
-    prior = res.obs_ensemble(prior_it)
     pdc = res.pdc()
 
-    conflict = None
+    # Build a per-group summary (sum = #conflicted, count = #obs) - vectorised,
+    # so it stays fast even for millions of observations.  The prior ensemble
+    # is only loaded for the fallback path (no pdc.csv), never when PEST++'s
+    # own *.pdc.csv is available.
+    summ = None
+    source = None
     if pdc is not None and "name" in {c.lower() for c in pdc.columns}:
-        # PEST++ writes one row per *conflicted* observation, with a
-        # ``distance`` measure; map each to its group and mark it in conflict.
         cols = {c.lower(): c for c in pdc.columns}
         name_col = cols["name"]
-        flagged = pdc[name_col].astype(str).str.lower().tolist()
+        flagged = pdc[name_col].astype(str).str.lower()
         if "distance" in cols:
-            dist = pd.to_numeric(pdc[cols["distance"]], errors="coerce")
-            flagged = [n for n, d in zip(flagged, dist) if pd.notna(d)]
+            keep = pd.to_numeric(pdc[cols["distance"]], errors="coerce").notna()
+            flagged = flagged[keep.values]
+        flagged_set = set(flagged)
         obs_all = res.pst.observation_data
-        grp_of = obs_all["obgnme"].astype(str).to_dict()
-        names = [n for n in obs_all.index]
-        conflict = pd.DataFrame({
-            "name": names,
-            "obgnme": [grp_of.get(n, "?") for n in names],
-            "conflict": [n in set(flagged) for n in names],
-        })
+        grp = obs_all["obgnme"].astype(str)
+        # index names lower-cased to match the pdc names
+        is_flagged = pd.Series(obs_all.index.str.lower().isin(flagged_set),
+                               index=obs_all.index)
+        total = grp.value_counts()
+        conf = grp[is_flagged.values].value_counts()
+        summ = pd.DataFrame({"count": total})
+        summ["sum"] = conf.reindex(summ.index).fillna(0).astype(int)
+        summ["pct"] = 100.0 * summ["sum"] / summ["count"]
         source = "pdc.csv"
-    elif prior is not None:
+    else:
+        _, prior_it = _resolve_iters(res, None, prior_iteration)
+        prior = res.obs_ensemble(prior_it)
+        if prior is None:
+            print("[puma] no data for prior-data-conflict; skipping")
+            return None
         names = [n for n in obs.index if n in prior.columns]
         if not names:
-            print("[ies-post] cannot assess prior-data conflict; skipping")
+            print("[puma] cannot assess prior-data conflict; skipping")
             return None
         meas = obs.loc[names, "obsval"].astype(float)
         lo = prior[names].min(axis=0)
         hi = prior[names].max(axis=0)
         in_conflict = (meas < lo) | (meas > hi)
-        # distance outside the range, normalised by ensemble spread
-        spread = (hi - lo).replace(0, np.nan)
-        dist = np.where(meas < lo, (lo - meas) / spread,
-                        np.where(meas > hi, (meas - hi) / spread, 0.0))
-        conflict = pd.DataFrame({
-            "name": names,
-            "obgnme": obs.loc[names, "obgnme"].values,
-            "conflict": in_conflict.values,
-            "distance": dist,
-        })
+        summ = (pd.DataFrame({"obgnme": obs.loc[names, "obgnme"].values,
+                              "conflict": in_conflict.values})
+                .groupby("obgnme")["conflict"].agg(["sum", "count"]))
+        summ["pct"] = 100.0 * summ["sum"] / summ["count"]
         source = "prior ensemble range"
-    else:
-        print("[ies-post] no data for prior-data-conflict; skipping")
-        return None
 
     utils.apply_style()
-    if "obgnme" in conflict.columns and "conflict" in conflict.columns:
-        summ = (conflict.groupby("obgnme")["conflict"]
-                .agg(["sum", "count"]))
-        summ["pct"] = 100.0 * summ["sum"] / summ["count"]
+    if summ is not None and not summ.empty:
         n_conf_groups = int((summ["sum"] > 0).sum())
         total_groups = len(summ)
         # with many groups keep the worst offenders so the chart stays readable
@@ -996,5 +1107,5 @@ def plot_prior_data_conflict(res: IesResults, output_dir: str,
         ax.set_title(ttl)
         out = _ensure_dir(output_dir) / f"{res.case}_11_prior_data_conflict.png"
         return _save(fig, out)
-    print("[ies-post] pdc.csv present but unexpected format; skipping plot")
+    print("[puma] pdc.csv present but unexpected format; skipping plot")
     return None

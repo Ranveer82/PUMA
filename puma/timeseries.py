@@ -83,7 +83,7 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
     """
     meta = _resolve_meta(res, obs_meta, obs_meta_csv)
     if meta is None:
-        print("[ies-post] no time metadata available; skipping time series")
+        print("[puma] no time metadata available; skipping time series")
         return []
 
     it = res.posterior_iter if iteration is None else iteration
@@ -101,7 +101,9 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
     lo_q, hi_q = ci
     sites = meta["site"].unique().tolist()[:max_sites]
     for site in sites:
-        sm = meta.loc[meta.site == site].sort_values("datetime")
+        sm = meta.loc[meta.site == site.lower()].sort_values("datetime")
+        #sm = meta.loc[meta["site"].str.strip().str.casefold() == site.strip().casefold()]
+
         names = [n for n in sm["obsnme"] if n in post.columns]
         if len(names) < min_points:
             continue
@@ -121,7 +123,7 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
         ax.plot(dates, med, color=POST_COLOR, lw=1.4, label="posterior median")
         mmask = np.isfinite(meas) & (wt > 0)
         ax.plot(np.asarray(dates)[mmask], meas[mmask], "o", color=MEAS_COLOR,
-                ms=3.5, label="measured (weighted)")
+                ms=3.5, label="measured")
         ax.set_title(f"Time-series fit: {site}", fontsize=12)
         ax.set_xlabel("date")
         ax.set_ylabel("value")
@@ -131,5 +133,5 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
         fig.savefig(path)
         plt.close(fig)
         written.append(path)
-    print(f"[ies-post]   saved {len(written)} time-series figure(s)")
+    print(f"[puma]   saved {len(written)} time-series figure(s)")
     return written
