@@ -34,6 +34,24 @@ import matplotlib.pyplot as plt
 from .results import IesResults
 from . import utils
 from .utils import PRIOR_COLOR, POST_COLOR, MEAS_COLOR
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def _load_obs_lookup(csv_path: str) -> dict[str, str]:
+    df = pd.read_csv(csv_path)
+
+    return {
+        str(obgnme).strip().lower(): obs_name
+        for obgnme, obs_name in zip(df["obgnme"], df["obs_name"])
+    }
+
+
+def _obs_group_name(obgnme: str, lookup_csv: str) -> str:
+    lookup = _load_obs_lookup(lookup_csv)
+    key = str(obgnme).strip().lower()
+
+    return lookup.get(key, obgnme)
 
 
 def _resolve_meta(res: IesResults,
@@ -73,6 +91,7 @@ def _resolve_meta(res: IesResults,
 def plot_obs_timeseries(res: IesResults, output_dir: str,
                         obs_meta: Optional[pd.DataFrame] = None,
                         obs_meta_csv: Optional[str] = None,
+                        site_lookup: Optional[str] = None,
                         iteration: Optional[int] = None,
                         min_points: int = 5,
                         max_sites: int = 60,
@@ -101,6 +120,9 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
     lo_q, hi_q = ci
     sites = meta["site"].unique().tolist()[:max_sites]
     for site in sites:
+        if site_lookup is not None and Path(site_lookup).exists():
+            site_name = _obs_group_name(site, site_lookup)
+            
         sm = meta.loc[meta.site == site.lower()].sort_values("datetime")
         #sm = meta.loc[meta["site"].str.strip().str.casefold() == site.strip().casefold()]
 
@@ -124,7 +146,7 @@ def plot_obs_timeseries(res: IesResults, output_dir: str,
         mmask = np.isfinite(meas) & (wt > 0)
         ax.plot(np.asarray(dates)[mmask], meas[mmask], "o", color=MEAS_COLOR,
                 ms=3.5, label="measured")
-        ax.set_title(f"Time-series fit: {site}", fontsize=12)
+        ax.set_title(f"Time-series fit: {site}--{site_name}", fontsize=12)
         ax.set_xlabel("date")
         ax.set_ylabel("value")
         ax.legend(loc="best", fontsize=8)

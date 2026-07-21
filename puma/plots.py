@@ -128,6 +128,8 @@ def _classify_by_prefix(groups: pd.Series, obs_type_map: dict) -> pd.Series:
     return gl.map(uniq)
 
 
+
+
 def _obs_panel_map(res: IesResults, obs: pd.DataFrame,
                    histo_file: Optional[str],
                    obs_type_map: Optional[dict] = None):
@@ -1014,7 +1016,7 @@ def plot_ensemble_coverage(res: IesResults, output_dir: str,
 # ======================================================================
 # 11. Prior data conflict
 # ======================================================================
-def plot_prior_data_conflict(res: IesResults, output_dir: str,
+def plot_prior_data_conflict(res: IesResults, output_dir: str, max_obsgrp: Optional[int] = 30,
                              prior_iteration: Optional[int] = None
                              ) -> Optional[Path]:
     """Screen observations for prior-data conflict.
@@ -1077,7 +1079,7 @@ def plot_prior_data_conflict(res: IesResults, output_dir: str,
         n_conf_groups = int((summ["sum"] > 0).sum())
         total_groups = len(summ)
         # with many groups keep the worst offenders so the chart stays readable
-        max_bars = 30
+        max_bars = max_obsgrp
         ranked = summ.sort_values("pct", ascending=False)
         if total_groups > max_bars:
             conflicted = ranked[ranked["sum"] > 0].head(max_bars)
